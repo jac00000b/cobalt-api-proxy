@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { etag } from "hono/etag";
 import type { StatusCode } from "hono/utils/http-status";
 
 const app = new Hono();
@@ -10,12 +9,6 @@ app.use(
     origin: "*",
     // or, if you want to allow only specific origins
     // origin: ["https://example.com"]
-  })
-);
-app.use(
-  "*",
-  etag({
-    weak: true,
   })
 );
 
@@ -133,9 +126,48 @@ app.post("/", async (c) => {
     },
     body: JSON.stringify(body),
   });
+  const json = (await res.json()) as any;
+
+  if (json.url) {
+    const tunnelUrl = new URL(json.url);
+    json.url = `${new URL(c.req.url).origin}/tunnel/${instance.protocol}/${
+      instance.api
+    }${tunnelUrl.search}`;
+  }
+
+  return c.json(json, res.status as StatusCode, {
+    "X-Instance": instance.api,
+  });
+});
+
+app.get("/tunnel/:protocol/:instanceHost", async (c) => {
+  const url = new URL(c.req.url);
+  const protocol = c.req.param("protocol");
+  const instanceHost = c.req.param("instanceHost");
+  const instance = await getInstances().then((instances) =>
+    instances.find((i) => i.protocol === protocol && i.api === instanceHost)
+  );
+
+  if (!instance) {
+    return c.json(
+      {
+        error: "Instance not found",
+      },
+      404
+    );
+  }
+
+  const res = await fetch(
+    `${instance.protocol}://${instance.api}/tunnel${url.search}`,
+    {
+      headers: {
+        Accept: "*/*",
+      },
+    }
+  );
 
   return c.body(res.body, res.status as StatusCode, {
-    "Content-Type": "application/json",
+    "Content-Disposition": res.headers.get("content-disposition") || "",
     "X-Instance": instance.api,
   });
 });
