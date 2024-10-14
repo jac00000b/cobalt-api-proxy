@@ -1,7 +1,23 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { etag } from "hono/etag";
 import type { StatusCode } from "hono/utils/http-status";
 
 const app = new Hono();
+app.use(
+  "*",
+  cors({
+    origin: "*",
+    // or, if you want to allow only specific origins
+    // origin: ["https://example.com"]
+  })
+);
+app.use(
+  "*",
+  etag({
+    weak: true,
+  })
+);
 
 type Instance = {
   trust: string;
